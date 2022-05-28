@@ -35,14 +35,14 @@ function calculateNextLines(frac::DragonFractal)
     end
 end
 
-function drawFractal(frac::DragonFractal)
+function drawFractal(frac::DragonFractal, off::Vector{T}) where T <: Real
     @guarded draw(c) do widget
         ctx = getgc(c)
         h = height(c)
         w = width(c)
     
-        for i = 2:length(fractal.lines)
-            rectangle(ctx, w / 2 + fractal.lines[i-1].x * 10, h / 2 + fractal.lines[i-1].y * 10, (fractal.lines[i] - fractal.lines[i-1]).x * 10 + 1, (fractal.lines[i] - fractal.lines[i-1]).y * 10 + 1)
+        for i = 2:length(frac.lines)
+            rectangle(ctx, w / 2 + frac.lines[i-1].x * 10 + off[1], h / 2 + frac.lines[i-1].y * 10 + off[2], (frac.lines[i] - frac.lines[i-1]).x * 10 + 1, (frac.lines[i] - frac.lines[i-1]).y * 10 + 1)
             set_source_rgb(ctx, 0, 0, 0)
             fill(ctx)
         end
@@ -67,30 +67,35 @@ win = GtkWindow(c, "Canvas")
 initialPoint = IntCoord(0, 1)
 fractal = DragonFractal([IntCoord(0, 0), initialPoint], [IntCoord(0, 0), rotate(initialPoint)])
 
-drawFractal(fractal)
+offset = [0, 0]
+zoom = 1
+
+drawFractal(fractal, offset)
 
 # https://rosettacode.org/wiki/Keyboard_input/Keypress_check#Julia
 function keycall(w, event)
+    #print(event)
     #print(event.keyval)
     if event.keyval == 65307 # esc
         exit(86)
-    elseif event.keyval == 65362 # up
-        #print(fractal.lines .+ IntCoord(0, 1))
-        for i = 1:length(fractal.lines)
-            fractal.lines[i] += IntCoord(0, 1)
-            fractal.rotatedLines[i] += IntCoord(-1, 0)
-            resetCanvas()
+    elseif event.keyval >= 65361 && event.keyval <= 65364
+        if event.keyval == 65362 # up
+            offset[2] -= 10
         end
-    elseif event.keyval == 65362 # left
-
-    elseif event.keyval == 65364 # down
-
-    elseif event.keyval == 65363 # right
-
+        if event.keyval == 65361 # left
+            offset[1] -= 10
+        end
+        if event.keyval == 65364 # down
+            offset[2] += 10
+        end
+        if event.keyval == 65363 # right
+            offset[1] += 10
+        end
+        resetCanvas()
     elseif event.keyval == 32 # space
         calculateNextLines(fractal)
     end
-    drawFractal(fractal)
+    drawFractal(fractal, offset)
 end
 signal_connect(keycall, win, "key-press-event")
 
