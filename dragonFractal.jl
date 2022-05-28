@@ -137,9 +137,9 @@ signal_connect(mousemove, win, "motion-notify-event")
 
 function scroll(w, event)
     if event.direction == 0 # up
-        global zoom += 0.1
+        global zoom = min(100.0, zoom * 1.12)
     elseif event.direction == 1 # down
-        global zoom -= 0.1
+        global zoom = max(0.01, zoom / 1.12)
     end
     resetCanvas()
     drawFractal(fractal, offset, zoom)
