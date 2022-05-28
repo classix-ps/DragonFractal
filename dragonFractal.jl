@@ -69,11 +69,11 @@ function calculateNextLines(frac::DragonFractal)
 end
 
 function planeToCanvas(p::IntCoord, off::FloatCoord, scale::Real)
-    return FloatCoord(p.x * scale + off.x, p.y * scale + off.y)
+    return FloatCoord((p.x + off.x) * scale, (p.y + off.y) * scale)
 end
 
 function canvasToPlane(p::FloatCoord, off::FloatCoord, scale::Real)
-    return IntCoord(round(Int, (p.x - off.x) / scale), round(Int, (p.y - off.y) / scale))
+    return FloatCoord(p.x / scale - off.x, p.y / scale - off.y)
 end
 
 # TODO: Only draw what's in view
@@ -130,9 +130,9 @@ win = GtkWindow(c, "Canvas", w, h)
 initialPoint = IntCoord(0, 1)
 fractal = DragonFractal([IntCoord(0, 0), initialPoint], [IntCoord(0, 0), rotate(initialPoint)])
 
-offset = FloatCoord(w / 2.0, h / 2.0)
 oldMousePos = IntCoord(0, 0)
 zoom = 10.0
+offset = FloatCoord(w / 2.0, h / 2.0) / zoom
 
 panning = false
 
@@ -154,11 +154,6 @@ end
 signal_connect(keypress, win, "key-press-event")
 
 function mousepress(widget, event)
-    #print(canvasToPlane(FloatCoord(0.0, 0.0), w, h, offset, zoom))
-    #print(canvasToPlane(FloatCoord(w, h), w, h, offset, zoom))
-    #print(planeToCanvas(IntCoord(0, 0), w, h, offset, zoom))
-    #print(planeToCanvas(IntCoord(-40, -40), w, h, offset, zoom))
-    #print(planeToCanvas(IntCoord(40, 40), w, h, offset, zoom))
     if event.button == 1 # left-click
         global oldMousePos = IntCoord(event.x, event.y)
         global panning = true
@@ -175,9 +170,9 @@ signal_connect(mouserelease, c, "button-release-event")
 
 function mousemove(widget, event)
     if panning
-        mousePos = IntCoord(event.x, event.y)
+        mousePos = FloatCoord(event.x, event.y)
         deltaPos = mousePos - oldMousePos
-        global offset += deltaPos
+        global offset += deltaPos / zoom
         global oldMousePos = mousePos
         resetCanvas()
         drawFractal(fractal, offset, zoom)
@@ -185,19 +180,18 @@ function mousemove(widget, event)
 end
 signal_connect(mousemove, c, "motion-notify-event")
 
-# TODO: Zoom around center of canvas instead of origin
 function scroll(widget, event)
-    #currentWidth = width(c)
-    #currentHeight = height(c)
-    #oldCenter = canvasToPlane(FloatCoord(currentWidth / 2, currentHeight / 2), offset, zoom)
+    currentWidth = width(c)
+    currentHeight = height(c)
+    oldCenter = canvasToPlane(FloatCoord(currentWidth / 2, currentHeight / 2), offset, zoom)
     if event.direction == 0 # up
         global zoom = min(600.0, zoom * 1.12)
     elseif event.direction == 1 # down
         global zoom = max(1.0, zoom / 1.12)
     end
-    #newCenter = canvasToPlane(FloatCoord(currentWidth / 2, currentHeight / 2), offset, zoom)
-    #print(oldCenter - newCenter)
-    #global offset += (oldCenter - newCenter)
+    newCenter = canvasToPlane(FloatCoord(currentWidth / 2, currentHeight / 2), offset, zoom)
+    print(oldCenter - newCenter)
+    global offset -= (oldCenter - newCenter)
 
     resetCanvas()
     drawFractal(fractal, offset, zoom)
