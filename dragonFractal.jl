@@ -3,16 +3,49 @@
 using Gtk, Graphics
 
 struct IntCoord
-    x::Int
-    y::Int
+    x::Int64
+    y::Int64
 end
 
-function Base.:+(p1::IntCoord, p2::IntCoord)
-    return IntCoord(p1.x + p2.x, p1.y + p2.y)
+struct FloatCoord
+    x::Float64
+    y::Float64
 end
 
-function Base.:-(p1::IntCoord, p2::IntCoord)
-    return IntCoord(p1.x - p2.x, p1.y - p2.y)
+function Base.:+(p1::Union{IntCoord, FloatCoord}, p2::Union{IntCoord, FloatCoord})
+    if typeof(p1) == FloatCoord || typeof(p2) == FloatCoord
+        return FloatCoord(p1.x + p2.x, p1.y + p2.y)
+    else
+        return IntCoord(p1.x + p2.x, p1.y + p2.y)
+    end
+end
+
+function Base.:-(p1::Union{IntCoord, FloatCoord}, p2::Union{IntCoord, FloatCoord})
+    if typeof(p1) == FloatCoord || typeof(p2) == FloatCoord
+        return FloatCoord(p1.x - p2.x, p1.y - p2.y)
+    else
+        return IntCoord(p1.x - p2.x, p1.y - p2.y)
+    end
+end
+
+function Base.:*(p::Union{IntCoord, FloatCoord}, s::Real)
+    if typeof(p) == FloatCoord
+        return FloatCoord(p.x * s, p.y * s)
+    else
+        return IntCoord(round(Int, p.x * s), round(Int, p.y * s))
+    end 
+end
+
+function Base.:/(p::Union{IntCoord, FloatCoord}, s::Real)
+    if s == 0
+        throw(DomainError(s, "scalar must be non-zero"))
+    end
+
+    if typeof(p) == FloatCoord
+        return FloatCoord(p.x / s, p.y / s)
+    else
+        return IntCoord(round(Int, p.x / s), round(Int, p.y / s))
+    end 
 end
 
 mutable struct DragonFractal
@@ -35,33 +68,42 @@ function calculateNextLines(frac::DragonFractal)
     end
 end
 
+function planeToCanvas(p::IntCoord, w::T, h::T, off::FloatCoord, scale::Real) where T <: Real
+    return FloatCoord(w / 2.0 + p.x * scale + off.x, h / 2.0 + p.y * scale + off.y)
+end
+
+function canvasToPlane(p::FloatCoord, w::T, h::T, off::FloatCoord, scale::Real) where T <: Real
+    return IntCoord(round(Int, (p.x - w / 2 - off.x) / scale), round(Int, (p.y - h / 2 - off.y) / scale))
+end
+
 # TODO: Only draw what's in view
-# TODO: Zoom around center of canvas instead of origin
-function drawFractal(frac::DragonFractal, off::IntCoord, scale::Real)
+function drawFractal(frac::DragonFractal, w::T, h::T, off::FloatCoord, scale::Real) where T <: Real
     @guarded draw(c) do widget
         ctx = getgc(c)
-        h = height(c)
-        w = width(c)
     
         set_source_rgb(ctx, 0, 0, 0)
         for i = 2:length(frac.lines)
-            move_to(ctx, w / 2 + frac.lines[i-1].x * 10 * scale + off.x, h / 2 + frac.lines[i-1].y * 10 * scale + off.y)
-            line_to(ctx, w / 2 + frac.lines[i].x * 10 * scale + off.x, h / 2 + frac.lines[i].y * 10 * scale + off.y)
+            p1 = planeToCanvas(frac.lines[i-1], w, h, off, scale)
+            p2 = planeToCanvas(frac.lines[i], w, h, off, scale)
+
+            move_to(ctx, p1.x, p1.y)
+            line_to(ctx, p2.x, p2.y)
             stroke(ctx)
         end
     end
 end
 
-function drawNewLines(frac::DragonFractal, off::IntCoord, scale::Real)
+function drawNewLines(frac::DragonFractal, w::T, h::T, off::FloatCoord, scale::Real) where T <: Real
     @guarded draw(c) do widget
         ctx = getgc(c)
-        h = height(c)
-        w = width(c)
     
         set_source_rgb(ctx, 0, 0, 0)
         for i = (ceil(Int, length(frac.lines) / 2) + 1):length(frac.lines)
-            move_to(ctx, w / 2 + frac.lines[i-1].x * 10 * scale + off.x, h / 2 + frac.lines[i-1].y * 10 * scale + off.y)
-            line_to(ctx, w / 2 + frac.lines[i].x * 10 * scale + off.x, h / 2 + frac.lines[i].y * 10 * scale + off.y)
+            p1 = planeToCanvas(frac.lines[i-1], w, h, off, scale)
+            p2 = planeToCanvas(frac.lines[i], w, h, off, scale)
+
+            move_to(ctx, p1.x, p1.y)
+            line_to(ctx, p2.x, p2.y)
             stroke(ctx)
         end
     end
@@ -70,8 +112,8 @@ end
 function resetCanvas()
     @guarded draw(c) do widget
         ctx = getgc(c)
-        h = height(c)
         w = width(c)
+        h = height(c)
     
         set_source_rgb(ctx, 1, 1, 1)
         rectangle(ctx, 0, 0, w, h)
@@ -79,72 +121,86 @@ function resetCanvas()
     end
 end
 
+w = 800
+h = 800
+
 c = GtkCanvas()
-win = GtkWindow(c, "Canvas")
+win = GtkWindow(c, "Canvas", w, h)
 
 initialPoint = IntCoord(0, 1)
 fractal = DragonFractal([IntCoord(0, 0), initialPoint], [IntCoord(0, 0), rotate(initialPoint)])
 
-offset = IntCoord(0, 0)
+offset = FloatCoord(0.0, 0.0)
 oldMousePos = IntCoord(0, 0)
-zoom = 1.0
+zoom = 10.0
 
 panning = false
 
-drawFractal(fractal, offset, zoom)
+drawFractal(fractal, w, h, offset, zoom)
 
-function keypress(w, event)
+function keypress(widget, event)
     #print(event.keyval)
     if event.keyval == 65307 # esc
         exit(86)
     elseif event.keyval == 32 # space
         calculateNextLines(fractal)
-        drawNewLines(fractal, offset, zoom)
+        drawNewLines(fractal, w, h, offset, zoom)
     elseif event.keyval == 99 # c
-        global offset = IntCoord(0, 0)
+        global offset = FloatCoord(0.0, 0.0)
         resetCanvas()
-        drawFractal(fractal, offset, zoom)
+        drawFractal(fractal, w, h, offset, zoom)
     end
 end
 signal_connect(keypress, win, "key-press-event")
 
-function mousepress(w, event)
+function mousepress(widget, event)
     if event.button == 1 # left-click
         global oldMousePos = IntCoord(event.x, event.y)
         global panning = true
     end
 end
-signal_connect(mousepress, win, "button-press-event")
+signal_connect(mousepress, c, "button-press-event")
 
-function mouserelease(w, event)
+function mouserelease(widget, event)
     if event.button == 1 # left-click
         global panning = false
     end
 end
-signal_connect(mouserelease, win, "button-release-event")
+signal_connect(mouserelease, c, "button-release-event")
 
-function mousemove(w, event)
+function mousemove(widget, event)
     if panning
         mousePos = IntCoord(event.x, event.y)
         deltaPos = mousePos - oldMousePos
         global offset += deltaPos
         global oldMousePos = mousePos
         resetCanvas()
-        drawFractal(fractal, offset, zoom)
+        drawFractal(fractal, w, h, offset, zoom)
     end
 end
-signal_connect(mousemove, win, "motion-notify-event")
+signal_connect(mousemove, c, "motion-notify-event")
 
-function scroll(w, event)
+# TODO: Zoom around center of canvas instead of origin
+function scroll(widget, event)
+    #currentWidth = width(c)
+    #currentHeight = height(c)
+    #oldCenter = canvasToPlane(FloatCoord(currentWidth / 2, currentHeight / 2), w, h, offset, zoom)
     if event.direction == 0 # up
-        global zoom = min(100.0, zoom * 1.12)
+        global zoom = min(600.0, zoom * 1.12)
     elseif event.direction == 1 # down
-        global zoom = max(0.01, zoom / 1.12)
+        global zoom = max(1.0, zoom / 1.12)
     end
+    #newCenter = canvasToPlane(FloatCoord(currentWidth / 2, currentHeight / 2), w, h, offset, zoom)
+    #global offset -= (oldCenter - newCenter)
+
     resetCanvas()
-    drawFractal(fractal, offset, zoom)
+    drawFractal(fractal, w, h, offset, zoom)
 end
 signal_connect(scroll, win, "scroll-event")
+
+#function resize(widget, event)
+#end
+#signal_connect(resize, c, "size-allocate")
 
 cond = Condition()
 endit(w) = notify(cond)
