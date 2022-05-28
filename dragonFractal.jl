@@ -49,6 +49,18 @@ function drawFractal(frac::DragonFractal)
     end
 end
 
+function resetCanvas()
+    @guarded draw(c) do widget
+        ctx = getgc(c)
+        h = height(c)
+        w = width(c)
+    
+        rectangle(ctx, 0, 0, w, h)
+        set_source_rgb(ctx, 1, 1, 1)
+        fill(ctx)
+    end
+end
+
 c = GtkCanvas()
 win = GtkWindow(c, "Canvas")
 
@@ -57,14 +69,28 @@ fractal = DragonFractal([IntCoord(0, 0), initialPoint], [IntCoord(0, 0), rotate(
 
 drawFractal(fractal)
 
+# https://rosettacode.org/wiki/Keyboard_input/Keypress_check#Julia
 function keycall(w, event)
-    ch = Char(event.keyval)
-    if ch == 'q'
+    #print(event.keyval)
+    if event.keyval == 65307 # esc
         exit(86)
-    else
+    elseif event.keyval == 65362 # up
+        #print(fractal.lines .+ IntCoord(0, 1))
+        for i = 1:length(fractal.lines)
+            fractal.lines[i] += IntCoord(0, 1)
+            fractal.rotatedLines[i] += IntCoord(-1, 0)
+            resetCanvas()
+        end
+    elseif event.keyval == 65362 # left
+
+    elseif event.keyval == 65364 # down
+
+    elseif event.keyval == 65363 # right
+
+    elseif event.keyval == 32 # space
         calculateNextLines(fractal)
-        drawFractal(fractal)
     end
+    drawFractal(fractal)
 end
 signal_connect(keycall, win, "key-press-event")
 
