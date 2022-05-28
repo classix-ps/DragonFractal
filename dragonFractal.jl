@@ -181,6 +181,10 @@ end
 signal_connect(mousemove, c, "motion-notify-event")
 
 function scroll(widget, event)
+    if event.direction != 0 && event.direction != 1
+        return
+    end
+
     currentWidth = width(c)
     currentHeight = height(c)
     oldCenter = canvasToPlane(FloatCoord(currentWidth / 2, currentHeight / 2), offset, zoom)
