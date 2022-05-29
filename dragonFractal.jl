@@ -76,14 +76,25 @@ function canvasToPlane(p::FloatCoord, off::FloatCoord, scale::Real)
     return FloatCoord(p.x / scale - off.x, p.y / scale - off.y)
 end
 
-# TODO: Only draw what's in view
+function inBounds(p::IntCoord, width::Real, height::Real)
+    q = planeToCanvas(p, offset, zoom)
+    return 0 < q.x < width && 0 < q.y < height
+end
+
+# TODO: Only draw what's in view without iterating over all lines
 function drawFractal(frac::DragonFractal, off::FloatCoord, scale::Real, onlyDrawNewLines::Bool = false)
     @guarded draw(c) do widget
         ctx = getgc(c)
+        sWidth = width(c)
+        sHeight = height(c)
     
         set_source_rgb(ctx, 0, 0, 0)
         itBegin = onlyDrawNewLines ? (ceil(Int, length(frac.lines) / 2) + 1) : 2
         for i = itBegin:length(frac.lines)
+            if !inBounds(frac.lines[i-1], sWidth, sHeight) && !inBounds(frac.lines[i], sWidth, sHeight)
+                continue
+            end
+
             p1 = planeToCanvas(frac.lines[i-1], off, scale)
             p2 = planeToCanvas(frac.lines[i], off, scale)
 
@@ -97,11 +108,9 @@ end
 function resetCanvas()
     @guarded draw(c) do widget
         ctx = getgc(c)
-        w = width(c)
-        h = height(c)
     
         set_source_rgb(ctx, 1, 1, 1)
-        rectangle(ctx, 0, 0, w, h)
+        rectangle(ctx, 0, 0, width(c), height(c))
         fill(ctx)
     end
 end
