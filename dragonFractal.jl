@@ -77,28 +77,13 @@ function canvasToPlane(p::FloatCoord, off::FloatCoord, scale::Real)
 end
 
 # TODO: Only draw what's in view
-function drawFractal(frac::DragonFractal, off::FloatCoord, scale::Real)
+function drawFractal(frac::DragonFractal, off::FloatCoord, scale::Real, onlyDrawNewLines::Bool = false)
     @guarded draw(c) do widget
         ctx = getgc(c)
     
         set_source_rgb(ctx, 0, 0, 0)
-        for i = 2:length(frac.lines)
-            p1 = planeToCanvas(frac.lines[i-1], off, scale)
-            p2 = planeToCanvas(frac.lines[i], off, scale)
-
-            move_to(ctx, p1.x, p1.y)
-            line_to(ctx, p2.x, p2.y)
-            stroke(ctx)
-        end
-    end
-end
-
-function drawNewLines(frac::DragonFractal, off::FloatCoord, scale::Real)
-    @guarded draw(c) do widget
-        ctx = getgc(c)
-    
-        set_source_rgb(ctx, 0, 0, 0)
-        for i = (ceil(Int, length(frac.lines) / 2) + 1):length(frac.lines)
+        itBegin = onlyDrawNewLines ? (ceil(Int, length(frac.lines) / 2) + 1) : 2
+        for i = itBegin:length(frac.lines)
             p1 = planeToCanvas(frac.lines[i-1], off, scale)
             p2 = planeToCanvas(frac.lines[i], off, scale)
 
@@ -144,7 +129,7 @@ function keypress(widget, event)
         exit(86)
     elseif event.keyval == 32 # space
         calculateNextLines(fractal)
-        drawNewLines(fractal, offset, zoom)
+        drawFractal(fractal, offset, zoom, true)
     elseif event.keyval == 99 # c
         global offset = FloatCoord(0.0, 0.0)
         resetCanvas()
@@ -194,7 +179,6 @@ function scroll(widget, event)
         global zoom = max(1.0, zoom / 1.12)
     end
     newCenter = canvasToPlane(FloatCoord(currentWidth / 2, currentHeight / 2), offset, zoom)
-    print(oldCenter - newCenter)
     global offset -= (oldCenter - newCenter)
 
     resetCanvas()
