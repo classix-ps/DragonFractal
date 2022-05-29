@@ -1,6 +1,7 @@
-# Visualizing the dragon fractal
+# Visualizing the dragon fractal (https://en.wikipedia.org/wiki/Dragon_curve)
+# Github: https://github.com/classix-ps/DragonFractal
 
-using Gtk, Graphics
+using Gtk
 
 struct IntCoord
     x::Int64
