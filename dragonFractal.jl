@@ -141,7 +141,7 @@ function keypress(widget, event)
         calculateNextLines(fractal)
         drawFractal(fractal, offset, zoom, true)
     elseif event.keyval == 99 # c
-        global offset = FloatCoord(0.0, 0.0)
+        global offset = FloatCoord(width(c) / 2.0, height(c) / 2.0) / zoom
         resetCanvas()
         drawFractal(fractal, offset, zoom)
     end
