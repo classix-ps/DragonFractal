@@ -88,24 +88,25 @@ end
 
 function animate(frac::DragonFractal, off::FloatCoord, scale::Real)
     origLines = copy(frac.lines)
-    rotatedLines = copy(frac.rotatedLines)
     currentLineCount = length(frac.lines)
 
-    offset = last(frac.lines) - last(frac.rotatedLines)
+    delta = last(frac.lines)
     for angle in 0:0.01:(pi / 2)
         frac.lines = copy(origLines)
-        frac.rotatedLines = copy(rotatedLines)
 
         for i = (currentLineCount-1):-1:1
-            newPoint = frac.lines[i] + offset
-            push!(frac.lines, rotate(newPoint, angle))
-            push!(frac.rotatedLines, newPoint)
+            newPoint = rotate(frac.lines[i] - delta, angle) + delta
+            push!(frac.lines, newPoint)
         end
 
         resetCanvas()
         drawFractal(frac, off, scale)
         Gtk.draw(c)
-        #sleep(0.1)
+        #sleep(0.01)
+    end
+
+    for i = (currentLineCount-1):-1:length(frac.lines)
+        push!(frac.rotatedLines, rotate(frac.lines[i], pi / 2))
     end
 end
 
