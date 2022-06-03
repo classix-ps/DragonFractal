@@ -3,73 +3,37 @@
 
 using Gtk
 
-struct IntCoord
-    x::Int64
-    y::Int64
-end
-
 struct FloatCoord
     x::Float64
     y::Float64
 end
 
-function Base.:+(p1::Union{IntCoord, FloatCoord}, p2::Union{IntCoord, FloatCoord})
-    if typeof(p1) == FloatCoord || typeof(p2) == FloatCoord
-        return FloatCoord(p1.x + p2.x, p1.y + p2.y)
-    else
-        return IntCoord(p1.x + p2.x, p1.y + p2.y)
-    end
+function Base.:+(p1::FloatCoord, p2::FloatCoord)
+    return FloatCoord(p1.x + p2.x, p1.y + p2.y)
 end
 
-function Base.:-(p1::Union{IntCoord, FloatCoord}, p2::Union{IntCoord, FloatCoord})
-    if typeof(p1) == FloatCoord || typeof(p2) == FloatCoord
-        return FloatCoord(p1.x - p2.x, p1.y - p2.y)
-    else
-        return IntCoord(p1.x - p2.x, p1.y - p2.y)
-    end
+function Base.:-(p1::FloatCoord, p2::FloatCoord)
+    return FloatCoord(p1.x - p2.x, p1.y - p2.y)
 end
 
-function Base.:*(p::Union{IntCoord, FloatCoord}, s::Real)
-    if typeof(p) == FloatCoord
-        return FloatCoord(p.x * s, p.y * s)
-    else
-        return IntCoord(round(Int, p.x * s), round(Int, p.y * s))
-    end 
+function Base.:*(p::FloatCoord, s::Real)
+    return FloatCoord(p.x * s, p.y * s)
 end
 
-function Base.:/(p::Union{IntCoord, FloatCoord}, s::Real)
+function Base.:/(p::FloatCoord, s::Real)
     if s == 0
         throw(DomainError(s, "scalar must be non-zero"))
     end
 
-    if typeof(p) == FloatCoord
-        return FloatCoord(p.x / s, p.y / s)
-    else
-        return IntCoord(round(Int, p.x / s), round(Int, p.y / s))
-    end 
+    return FloatCoord(p.x / s, p.y / s)
 end
 
 mutable struct DragonFractal
-    lines::Vector{IntCoord}
-    rotatedLines::Vector{IntCoord}
+    lines::Vector{FloatCoord}
+    rotatedLines::Vector{FloatCoord}
 end
 
-function rotate(p::IntCoord)
-    return IntCoord(-p.y, p.x)
-end
-
-function calculateNextLines(frac::DragonFractal)
-    offset = last(frac.lines) - last(frac.rotatedLines)
-
-    currentLines = length(frac.lines)
-    for i = (currentLines-1):-1:1
-        newPoint = frac.rotatedLines[i] + offset
-        push!(frac.lines, newPoint)
-        push!(frac.rotatedLines, rotate(newPoint))
-    end
-end
-
-function planeToCanvas(p::IntCoord, off::FloatCoord, scale::Real)
+function planeToCanvas(p::FloatCoord, off::FloatCoord, scale::Real)
     return FloatCoord((p.x + off.x) * scale, (p.y + off.y) * scale)
 end
 
@@ -77,7 +41,7 @@ function canvasToPlane(p::FloatCoord, off::FloatCoord, scale::Real)
     return FloatCoord(p.x / scale - off.x, p.y / scale - off.y)
 end
 
-function inBounds(p::IntCoord, width::Real, height::Real)
+function inBounds(p::FloatCoord, width::Real, height::Real)
     q = planeToCanvas(p, offset, zoom)
     return 0 < q.x < width && 0 < q.y < height
 end
@@ -116,16 +80,45 @@ function resetCanvas()
     end
 end
 
+function rotate(p::FloatCoord, θ::Real)
+    sinθ = sin(θ)
+    cosθ = cos(θ)
+    return FloatCoord(p.x * cosθ - p.y * sinθ, p.x * sinθ + p.y * cosθ)
+end
+
+function animate(frac::DragonFractal, off::FloatCoord, scale::Real)
+    origLines = copy(frac.lines)
+    rotatedLines = copy(frac.rotatedLines)
+    currentLineCount = length(frac.lines)
+
+    offset = last(frac.lines) - last(frac.rotatedLines)
+    for angle in 0:0.01:(pi / 2)
+        frac.lines = copy(origLines)
+        frac.rotatedLines = copy(rotatedLines)
+
+        for i = (currentLineCount-1):-1:1
+            newPoint = frac.lines[i] + offset
+            push!(frac.lines, rotate(newPoint, angle))
+            push!(frac.rotatedLines, newPoint)
+        end
+
+        resetCanvas()
+        drawFractal(frac, off, scale)
+        Gtk.draw(c)
+        #sleep(0.1)
+    end
+end
+
 w = 800
 h = 800
 
 c = GtkCanvas()
 win = GtkWindow(c, "Canvas", w, h)
 
-initialPoint = IntCoord(0, 1)
-fractal = DragonFractal([IntCoord(0, 0), initialPoint], [IntCoord(0, 0), rotate(initialPoint)])
+initialPoint = FloatCoord(0, 1)
+fractal = DragonFractal([FloatCoord(0, 0), initialPoint], [FloatCoord(0, 0), rotate(initialPoint, pi / 2)])
 
-oldMousePos = IntCoord(0, 0)
+oldMousePos = FloatCoord(0, 0)
 zoom = 10.0
 offset = FloatCoord(w / 2.0, h / 2.0) / zoom
 
@@ -138,8 +131,7 @@ function keypress(widget, event)
     if event.keyval == 65307 # esc
         exit(86)
     elseif event.keyval == 32 # space
-        calculateNextLines(fractal)
-        drawFractal(fractal, offset, zoom, true)
+        animate(fractal, offset, zoom) # TODO: schedule task
     elseif event.keyval == 99 # c
         global offset = FloatCoord(width(c) / 2.0, height(c) / 2.0) / zoom
         resetCanvas()
@@ -150,7 +142,7 @@ signal_connect(keypress, win, "key-press-event")
 
 function mousepress(widget, event)
     if event.button == 1 # left-click
-        global oldMousePos = IntCoord(event.x, event.y)
+        global oldMousePos = FloatCoord(event.x, event.y)
         global panning = true
     end
 end
