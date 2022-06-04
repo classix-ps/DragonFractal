@@ -105,8 +105,12 @@ function animate(frac::DragonFractal, off::FloatCoord, scale::Real)
         #sleep(0.01)
     end
 
-    for i = (currentLineCount-1):-1:length(frac.lines)
-        push!(frac.rotatedLines, rotate(frac.lines[i], pi / 2))
+    frac.lines = copy(origLines)
+    delta = last(frac.lines) - last(frac.rotatedLines)
+    for i = (currentLineCount-1):-1:1
+        newPoint = frac.rotatedLines[i] + delta
+        push!(frac.lines, newPoint)
+        push!(frac.rotatedLines, rotate(newPoint, pi/2))
     end
 end
 
@@ -115,6 +119,8 @@ h = 800
 
 c = GtkCanvas()
 win = GtkWindow(c, "Canvas", w, h)
+
+task = nothing
 
 initialPoint = FloatCoord(0, 1)
 fractal = DragonFractal([FloatCoord(0, 0), initialPoint], [FloatCoord(0, 0), rotate(initialPoint, pi / 2)])
@@ -132,12 +138,14 @@ function keypress(widget, event)
     if event.keyval == 65307 # esc
         exit(86)
     elseif event.keyval == 32 # space
-        animate(fractal, offset, zoom) # TODO: schedule task
+        global task = Task(()->animate(fractal, offset, zoom))
+        schedule(task)
     elseif event.keyval == 99 # c
         global offset = FloatCoord(width(c) / 2.0, height(c) / 2.0) / zoom
         resetCanvas()
         drawFractal(fractal, offset, zoom)
     end
+    return
 end
 signal_connect(keypress, win, "key-press-event")
 
@@ -196,5 +204,5 @@ signal_connect(scroll, win, "scroll-event")
 cond = Condition()
 endit(w) = notify(cond)
 signal_connect(endit, win, :destroy)
-show(c)
+showall(win)
 wait(cond)
